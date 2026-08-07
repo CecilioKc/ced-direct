@@ -1,0 +1,17 @@
+FROM node:20-bullseye-slim
+
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    sqlite3 \
+    python3 \
+    make \
+    g++ \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+EXPOSE 3000
+
+CMD ["npm", "run", "dev"]
