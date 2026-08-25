@@ -1,33 +1,17 @@
 'use client';
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { signIn } from 'next-auth/react';
 
 export default function LoginPage() {
-  const router = useRouter();
-  const [code, setCode] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSignIn = async () => {
     setLoading(true);
-    setError('');
-    try {
-      const res = await fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, password }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      if (data.role === 'manager') router.push('/manager');
-      else router.push('/agent');
-    } catch (e: any) {
-      setError(e.message || 'Login failed');
-    } finally {
-      setLoading(false);
-    }
+    // Azure AD (Microsoft Entra ID) handles the credential check; NextAuth then
+    // looks the signed-in email up against the agents table (see auth.ts) to
+    // decide whether the person is an authorized agent/manager and which
+    // dashboard to land on.
+    await signIn('azure-ad', { callbackUrl: `${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/post-login` });
   };
 
   return (
@@ -50,50 +34,30 @@ export default function LoginPage() {
           {/* Gold top bar */}
           <div className="h-2" style={{ backgroundColor: '#FFB81C' }} />
 
-          <form onSubmit={handleLogin} className="p-8 space-y-5">
-            <div>
-              <label className="block text-sm font-bold mb-2" style={{ color: '#4F2D7F' }}>Agent Code</label>
-              <input
-                type="text"
-                value={code}
-                onChange={e => setCode(e.target.value.toUpperCase())}
-                placeholder="e.g. AGENT-A"
-                required
-                style={{ color: '#111827', backgroundColor: '#ffffff', borderColor: '#d1d5db' }}
-                className="w-full border-2 rounded-xl px-4 py-3 text-base font-medium focus:outline-none transition"
-                onFocus={e => e.target.style.borderColor = '#4F2D7F'}
-                onBlur={e => e.target.style.borderColor = '#d1d5db'}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-bold mb-2" style={{ color: '#4F2D7F' }}>Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                required
-                style={{ color: '#111827', backgroundColor: '#ffffff', borderColor: '#d1d5db' }}
-                className="w-full border-2 rounded-xl px-4 py-3 text-base font-medium focus:outline-none transition"
-                onFocus={e => e.target.style.borderColor = '#4F2D7F'}
-                onBlur={e => e.target.style.borderColor = '#d1d5db'}
-              />
-            </div>
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm">{error}</div>
-            )}
+          <div className="p-8 space-y-5 text-center">
+            <p className="text-sm" style={{ color: '#4F2D7F' }}>
+              Sign in with your PVAMU Microsoft account to access the Agent or Manager dashboard.
+            </p>
 
             <button
-              type="submit"
+              onClick={handleSignIn}
               disabled={loading}
               style={{ backgroundColor: loading ? '#6b42a8' : '#4F2D7F' }}
-              className="w-full text-white py-4 rounded-xl text-lg font-bold transition hover:opacity-90 disabled:opacity-60"
+              className="w-full flex items-center justify-center gap-3 text-white py-4 rounded-xl text-lg font-bold transition hover:opacity-90 disabled:opacity-60"
             >
-              {loading ? 'Signing in...' : 'Sign In'}
+              <svg className="w-5 h-5" viewBox="0 0 21 21" fill="none">
+                <rect x="1" y="1" width="9" height="9" fill="#f25022" />
+                <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
+                <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
+                <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
+              </svg>
+              {loading ? 'Redirecting…' : 'Sign in with Microsoft'}
             </button>
-          </form>
+
+            <p className="text-xs text-gray-400">
+              Only accounts added to CED-Direct by an administrator can access agent or manager tools.
+            </p>
+          </div>
         </div>
 
         <p className="text-center text-purple-300 text-xs mt-6">

@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-interface Agent { id: number; name: string; code: string; role: string; created_at: string; }
+interface Agent { id: number; name: string; email: string; code: string; role: string; created_at: string; }
 
 export default function AdminPage() {
   const router = useRouter();
@@ -12,23 +12,23 @@ export default function AdminPage() {
   const [editAgent, setEditAgent] = useState<Agent | null>(null);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
-  const [form, setForm] = useState({ name: '', code: '', password: '', role: 'agent' });
+  const [form, setForm] = useState({ name: '', code: '', email: '', role: 'agent' });
 
   const load = () => {
-    fetch('/api/admin')
+    fetch((process.env.NEXT_PUBLIC_BASE_PATH ?? "") + '/api/admin')
       .then(r => r.status === 401 ? (router.push('/'), null) : r.json())
       .then(data => { if (data) { setAgents(data.agents); setLoading(false); } });
   };
 
   useEffect(() => { load(); }, []);
 
-  const openAdd = () => { setEditAgent(null); setForm({ name: '', code: '', password: '', role: 'agent' }); setShowForm(true); };
-  const openEdit = (a: Agent) => { setEditAgent(a); setForm({ name: a.name, code: a.code, password: '', role: a.role }); setShowForm(true); };
+  const openAdd = () => { setEditAgent(null); setForm({ name: '', code: '', email: '', role: 'agent' }); setShowForm(true); };
+  const openEdit = (a: Agent) => { setEditAgent(a); setForm({ name: a.name, code: a.code, email: a.email, role: a.role }); setShowForm(true); };
 
   const handleSave = async () => {
     setSaving(true);
     setMsg('');
-    const res = await fetch('/api/admin', {
+    const res = await fetch((process.env.NEXT_PUBLIC_BASE_PATH ?? "") + '/api/admin', {
       method: editAgent ? 'PUT' : 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(editAgent ? { ...form, id: editAgent.id } : form),
@@ -43,7 +43,7 @@ export default function AdminPage() {
 
   const handleDelete = async (a: Agent) => {
     if (!confirm(`Delete agent ${a.name}? This will NOT delete their submission data.`)) return;
-    await fetch('/api/admin', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: a.id }) });
+    await fetch((process.env.NEXT_PUBLIC_BASE_PATH ?? "") + '/api/admin', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: a.id }) });
     load();
   };
 
@@ -84,8 +84,9 @@ export default function AdminPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-gray-800">{a.name}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                     <span className="font-mono text-sm text-gray-500">{a.code}</span>
+                    <span className="text-xs text-gray-400">{a.email}</span>
                     <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${a.role === 'manager' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>{a.role}</span>
                   </div>
                 </div>
@@ -124,11 +125,12 @@ export default function AdminPage() {
                   className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-base font-mono focus:outline-none focus:border-indigo-400" />
               </div>
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1.5">{editAgent ? 'New Password (leave blank to keep current)' : 'Password'}</label>
-                <input type="password" value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
-                  placeholder={editAgent ? 'Leave blank to keep current' : 'Set a password'}
+                <label className="block text-sm font-bold text-gray-700 mb-1.5">Sign-in Email (Microsoft / Azure AD)</label>
+                <input type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
+                  placeholder="e.g. jane.smith@pvamu.edu"
                   style={{ color: '#111827' }}
                   className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-indigo-400" />
+                <p className="text-xs text-gray-400 mt-1">Must match the email on their PVAMU Microsoft account — this is how they sign in, no password needed.</p>
               </div>
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1.5">Role</label>
