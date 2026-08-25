@@ -1,16 +1,19 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getTokenFromCookie } from '@/lib/auth';
-import db from '@/lib/db';
+import { NextResponse } from 'next/server';
+import { auth } from '@/auth';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const token = getTokenFromCookie(request.headers.get('cookie'));
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const agent = db.prepare(
-      'SELECT id, name, code, role FROM agents WHERE id = ?'
-    ).get(token.agentId) as any;
-    if (!agent) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    return NextResponse.json(agent);
+    const session = await auth();
+    if (!session?.authorized) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    return NextResponse.json({
+      id: session.agentId,
+      name: session.user?.name,
+      code: session.code,
+      role: session.role,
+      email: session.user?.email,
+    });
   } catch (error) {
     console.error('Me error:', error);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });

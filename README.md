@@ -1,5 +1,7 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+CED-Direct's agent/manager dashboards sign in via Microsoft Entra ID (Azure AD) and store data in Azure SQL Database. Copy `.env.example` to `.env.local` and fill in the Azure AD + Azure SQL values before running locally — see `DEPLOYMENT.md` for full setup instructions, including IIS production deployment.
+
 ## Getting Started
 
 First, run the development server:

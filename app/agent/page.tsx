@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { signOut } from 'next-auth/react';
 
 interface ReportData {
   total: number;
@@ -39,7 +40,7 @@ export default function AgentPage() {
     const params = new URLSearchParams();
     if (month) params.set('month', month);
     if (county) params.set('county', county);
-    const url = params.toString() ? `/api/reports?${params}` : '/api/reports';
+    const url = (process.env.NEXT_PUBLIC_BASE_PATH ?? "") + (params.toString() ? `/api/reports?${params}` : '/api/reports');
     const res = await fetch(url);
     if (res.status === 401) { router.push('/'); return; }
     const data = await res.json();
@@ -48,8 +49,8 @@ export default function AgentPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/reports').then(r => r.status === 401 ? null : r.json()),
-      fetch('/api/auth/me').then(r => r.ok ? r.json() : null),
+      fetch((process.env.NEXT_PUBLIC_BASE_PATH ?? "") + '/api/reports').then(r => r.status === 401 ? null : r.json()),
+      fetch((process.env.NEXT_PUBLIC_BASE_PATH ?? "") + '/api/auth/me').then(r => r.ok ? r.json() : null),
     ]).then(([reportData, agentData]) => {
       if (!reportData) { router.push('/'); return; }
       setReport(reportData);
@@ -84,8 +85,7 @@ export default function AgentPage() {
   };
 
   const handleLogout = async () => {
-    await fetch('/api/auth', { method: 'DELETE' });
-    router.push('/');
+    await signOut({ callbackUrl: `${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/` });
   };
 
   const Bar = ({ count, total, color }: { count: number; total: number; color: string }) => (

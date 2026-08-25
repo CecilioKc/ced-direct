@@ -1,97 +1,8 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 
-const TEXAS_COUNTIES = [
-  "Anderson","Andrews","Angelina","Aransas","Archer","Armstrong","Atascosa","Austin",
-  "Bailey","Bandera","Bastrop","Baylor","Bee","Bell","Bexar","Blanco","Borden","Bosque",
-  "Bowie","Brazoria","Brazos","Brewster","Briscoe","Brooks","Brown","Burleson","Burnet",
-  "Caldwell","Calhoun","Callahan","Cameron","Camp","Carson","Cass","Castro","Chambers",
-  "Cherokee","Childress","Clay","Cochran","Coke","Coleman","Collin","Collingsworth",
-  "Colorado","Comal","Comanche","Concho","Cooke","Coryell","Cottle","Crane","Crockett",
-  "Crosby","Culberson","Dallam","Dallas","Dawson","Deaf Smith","Delta","Denton","DeWitt",
-  "Dickens","Dimmit","Donley","Duval","Eastland","Ector","Edwards","Ellis","El Paso",
-  "Erath","Falls","Fannin","Fayette","Fisher","Floyd","Foard","Fort Bend","Franklin",
-  "Freestone","Frio","Gaines","Galveston","Garza","Gillespie","Glasscock","Goliad",
-  "Gonzales","Gray","Grayson","Gregg","Grimes","Guadalupe","Hale","Hall","Hamilton",
-  "Hansford","Hardeman","Hardin","Harris","Harrison","Hartley","Haskell","Hays",
-  "Hemphill","Henderson","Hidalgo","Hill","Hockley","Hood","Hopkins","Houston","Howard",
-  "Hudspeth","Hunt","Hutchinson","Irion","Jack","Jackson","Jasper","Jeff Davis",
-  "Jefferson","Jim Hogg","Jim Wells","Johnson","Jones","Karnes","Kaufman","Kendall",
-  "Kenedy","Kent","Kerr","Kimble","King","Kinney","Kleberg","Knox","Lamar","Lamb",
-  "Lampasas","La Salle","Lavaca","Lee","Leon","Liberty","Limestone","Lipscomb",
-  "Live Oak","Llano","Loving","Lubbock","Lynn","McCulloch","McLennan","McMullen",
-  "Madison","Marion","Martin","Mason","Matagorda","Maverick","Medina","Menard",
-  "Midland","Milam","Mills","Mitchell","Montague","Montgomery","Moore","Morris",
-  "Motley","Nacogdoches","Navarro","Newton","Nolan","Nueces","Ochiltree","Oldham",
-  "Orange","Palo Pinto","Panola","Parker","Parmer","Pecos","Polk","Potter","Presidio",
-  "Rains","Randall","Reagan","Real","Red River","Reeves","Refugio","Roberts",
-  "Robertson","Rockwall","Runnels","Rusk","Sabine","San Augustine","San Jacinto",
-  "San Patricio","San Saba","Schleicher","Scurry","Shackelford","Shelby","Sherman",
-  "Smith","Somervell","Starr","Stephens","Sterling","Stonewall","Sutton","Swisher",
-  "Tarrant","Taylor","Terrell","Terry","Throckmorton","Titus","Tom Green","Travis",
-  "Trinity","Tyler","Upshur","Upton","Uvalde","Val Verde","Van Zandt","Victoria",
-  "Walker","Waller","Ward","Washington","Webb","Wharton","Wheeler","Wichita",
-  "Wilbarger","Willacy","Williamson","Wilson","Winkler","Wise","Wood","Yoakum",
-  "Young","Zapata","Zavala"
-];
-
 interface Agent { id: number; name: string; code: string; }
-
-function MobileSearchDropdown({ options, value, onChange, placeholder, label }: {
-  options: string[]; value: string; onChange: (v: string) => void;
-  placeholder: string; label: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
-  const filtered = options.filter(o => o.toLowerCase().includes(search.toLowerCase())).slice(0, 80);
-
-  useEffect(() => {
-    if (open) setTimeout(() => inputRef.current?.focus(), 100);
-  }, [open]);
-
-  if (open) {
-    return (
-      <div className="fixed inset-0 bg-white z-50 flex flex-col">
-        <div style={{ backgroundColor: '#4F2D7F' }} className="px-4 py-4 flex items-center gap-3">
-          <button onClick={() => { setOpen(false); setSearch(''); }} className="text-white p-2 -ml-2">
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <div className="flex-1 bg-white/20 rounded-xl px-4 py-2 flex items-center gap-2">
-            <svg className="w-5 h-5 text-white/70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input ref={inputRef} type="text" value={search} onChange={e => setSearch(e.target.value)}
-              placeholder={`Search ${label}...`}
-              className="bg-transparent text-white placeholder-white/60 text-base flex-1 focus:outline-none" />
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          {filtered.map(opt => (
-            <button key={opt} onClick={() => { onChange(opt); setSearch(''); setOpen(false); }}
-              className={`w-full text-left px-5 py-4 text-base border-b border-gray-100 flex items-center justify-between ${value === opt ? 'bg-indigo-50 text-indigo-700 font-bold' : 'text-gray-800'}`}>
-              {opt}
-              {value === opt && <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-            </button>
-          ))}
-          {!filtered.length && <div className="text-center py-12 text-gray-400">No results for "{search}"</div>}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <button onClick={() => setOpen(true)} className="w-full border-2 border-gray-200 rounded-2xl px-4 py-4 text-left flex items-center justify-between bg-white">
-      <span className={value ? 'text-gray-900 font-medium text-base' : 'text-gray-400 text-base'}>{value || placeholder}</span>
-      <svg className="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-      </svg>
-    </button>
-  );
-}
 
 export default function SurveyPage() {
   const params = useParams();
@@ -112,6 +23,7 @@ export default function SurveyPage() {
     selectedAgentName: '',
     county: '',
     phone: '',
+    email: '',
     race: [] as string[],
     age_group: '',
     sex: '',
@@ -122,23 +34,39 @@ export default function SurveyPage() {
 
   useEffect(() => {
     if (isGeneral) {
-      fetch('/api/agents/public')
+      fetch((process.env.NEXT_PUBLIC_BASE_PATH ?? "") + '/api/agents/public')
         .then(r => r.json())
         .then(data => { setAgents(data.agents || []); setAgentsLoading(false); });
     } else {
-      fetch('/api/agents/public')
+      fetch((process.env.NEXT_PUBLIC_BASE_PATH ?? "") + '/api/agents/public')
         .then(r => r.json())
         .then(data => {
           const agents = data.agents || [];
           const found = agents.find((a: Agent) => a.id === parseInt(urlAgentId));
           if (found) {
             setAgentInfo(found);
-            setForm(p => ({ ...p, selectedAgentId: found.id, selectedAgentName: found.name }));
+            setForm(p => ({ ...p, selectedAgentId: found.id, selectedAgentName: found.name, county: '' }));
           }
           setAgentsLoading(false);
         });
     }
   }, [urlAgentId, isGeneral]);
+
+  const normalizeCountyName = (value: string) => value.trim().split(/\s+/).filter(Boolean).map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()).join(' ');
+
+  const getCountiesForAgent = (agent?: Agent | null) => {
+    if (!agent?.code) return [];
+    const counties = agent.code
+      .split(/\s+/)
+      .map(part => part.trim())
+      .filter(Boolean)
+      .map(normalizeCountyName);
+    return Array.from(new Set(counties));
+  };
+
+  const selectedAgent = isGeneral ? agents.find(a => a.id === form.selectedAgentId) ?? null : agentInfo;
+  const agentCounties = getCountiesForAgent(selectedAgent);
+  const showCountyQuestion = agentCounties.length > 1;
 
   const toggleRace = (race: string) => {
     setForm(prev => {
@@ -159,13 +87,20 @@ export default function SurveyPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/survey', {
+      const countyValue = agentCounties.length === 1 ? agentCounties[0] : form.county;
+      if (showCountyQuestion && !countyValue) {
+        setError('Please select your county.');
+        return;
+      }
+
+      const res = await fetch((process.env.NEXT_PUBLIC_BASE_PATH ?? "") + '/api/survey', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           agentId: form.selectedAgentId,
-          city_county: form.county,
+          city_county: countyValue,
           phone: form.phone,
+          email: form.email,
           race: form.race,
           age_group: form.age_group,
           sex: form.sex,
@@ -237,11 +172,11 @@ export default function SurveyPage() {
   const agentBadge = false && !isGeneral && agentInfo && (
     <div className="bg-indigo-50 border border-indigo-100 rounded-2xl px-4 py-3 flex items-center gap-3 mb-6">
       <div className="w-10 h-10 bg-indigo-200 rounded-xl flex items-center justify-center flex-shrink-0">
-        <span className="text-indigo-700 font-bold text-lg">{agentInfo.name.charAt(0)}</span>
+        <span className="text-indigo-700 font-bold text-lg">{agentInfo?.name.charAt(0)}</span>
       </div>
       <div>
         <p className="text-xs text-indigo-500">You are signing in with</p>
-        <p className="font-bold text-indigo-700">{agentInfo.name}</p>
+        <p className="font-bold text-indigo-700">{agentInfo?.name}</p>
       </div>
     </div>
   );
@@ -298,7 +233,7 @@ export default function SurveyPage() {
               <div className="space-y-2">
                 {filteredAgents.map(a => (
                   <button key={a.id}
-                    onClick={() => { setForm(p => ({ ...p, selectedAgentId: a.id, selectedAgentName: a.name })); setStep(1); }}
+                    onClick={() => { setForm(p => ({ ...p, selectedAgentId: a.id, selectedAgentName: a.name, county: '' })); setError(''); setStep(1); }}
                     className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 rounded-2xl text-left bg-white active:bg-indigo-50 active:border-indigo-400 transition-all">
                     <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center flex-shrink-0">
                       <span className="text-indigo-700 font-bold text-xl">{a.name.charAt(0)}</span>
@@ -324,11 +259,19 @@ export default function SurveyPage() {
           <div>
             {agentBadge}
             <div className="space-y-5">
-              <div>
-                <label className="block text-base font-bold text-gray-800 mb-2">County <span className="text-gray-400 font-normal text-sm">(optional)</span></label>
-                <MobileSearchDropdown options={TEXAS_COUNTIES} value={form.county}
-                  onChange={v => setForm(p => ({ ...p, county: v }))} placeholder="Search and select your county" label="county" />
-              </div>
+              {showCountyQuestion && (
+                <div>
+                  <label className="block text-base font-bold text-gray-800 mb-2">County</label>
+                  <select value={form.county} onChange={e => { setError(''); setForm(p => ({ ...p, county: e.target.value })); }}
+                    style={{ color: '#111827' }}
+                    className="w-full border-2 border-gray-200 rounded-2xl px-4 py-4 text-base focus:outline-none focus:border-indigo-400 bg-white">
+                    <option value="">Select your county</option>
+                    {agentCounties.map(county => (
+                      <option key={county} value={county}>{county}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="block text-base font-bold text-gray-800 mb-2">Phone Number <span className="text-gray-400 font-normal text-sm">(optional)</span></label>
                 <input type="tel" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
@@ -336,7 +279,22 @@ export default function SurveyPage() {
                   style={{ color: '#111827' }}
                   className="w-full border-2 border-gray-200 rounded-2xl px-4 py-4 text-base focus:outline-none focus:border-indigo-400 bg-white" />
               </div>
-              <button onClick={() => setStep(2)}
+              <div>
+                <label className="block text-base font-bold text-gray-800 mb-2">Email <span className="text-gray-400 font-normal text-sm">(optional)</span></label>
+                <input type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
+                  placeholder="you@example.com"
+                  style={{ color: '#111827' }}
+                  className="w-full border-2 border-gray-200 rounded-2xl px-4 py-4 text-base focus:outline-none focus:border-indigo-400 bg-white" />
+              </div>
+              {error && <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-red-600 text-sm" aria-live="polite">{error}</div>}
+              <button onClick={() => {
+                setError('');
+                if (showCountyQuestion && !form.county) {
+                  setError('Please select your county.');
+                  return;
+                }
+                setStep(2);
+              }}
                 style={{ backgroundColor: '#4F2D7F' }}
                 className="w-full text-white py-4 rounded-2xl text-lg font-bold mt-2 active:bg-indigo-800">
                 Continue →

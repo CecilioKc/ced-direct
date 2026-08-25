@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { signOut } from 'next-auth/react';
 
 interface Agent {
   id: number;
@@ -43,7 +44,7 @@ export default function ManagerPage() {
     if (agentId) params.set('agentId', agentId);
     if (month) params.set('month', month);
     if (county) params.set('county', county);
-    const res = await fetch(`/api/reports?${params}`);
+    const res = await fetch((process.env.NEXT_PUBLIC_BASE_PATH ?? "") + `/api/reports?${params}`);
     if (res.status === 401) { router.push('/'); return; }
     const data = await res.json();
     setReport(data);
@@ -51,8 +52,8 @@ export default function ManagerPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/agents').then(r => r.ok ? r.json() : null),
-      fetch('/api/reports').then(r => r.ok ? r.json() : null),
+      fetch((process.env.NEXT_PUBLIC_BASE_PATH ?? "") + '/api/agents').then(r => r.ok ? r.json() : null),
+      fetch((process.env.NEXT_PUBLIC_BASE_PATH ?? "") + '/api/reports').then(r => r.ok ? r.json() : null),
     ]).then(([agentData, reportData]) => {
       if (agentData) setAgents(agentData.agents);
       if (reportData) setReport(reportData);
@@ -65,8 +66,7 @@ export default function ManagerPage() {
   }, [selectedAgent, selectedMonth, selectedCounty, fetchReport]);
 
   const handleLogout = async () => {
-    await fetch('/api/auth', { method: 'DELETE' });
-    router.push('/');
+    await signOut({ callbackUrl: `${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/` });
   };
 
   const BarChart = ({ data, labelKey, countKey, color }: {
