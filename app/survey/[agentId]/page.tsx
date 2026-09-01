@@ -1,8 +1,9 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import { normalizeContactEmail } from '@/lib/contact-email.mjs';
 
-interface Agent { id: number; name: string; code: string; }
+interface Agent { id: number; name: string; code: string; counties: string[]; }
 
 export default function SurveyPage() {
   const params = useParams();
@@ -16,12 +17,13 @@ export default function SurveyPage() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [linkError, setLinkError] = useState('');
   const [agentSearch, setAgentSearch] = useState('');
 
   const [form, setForm] = useState({
     selectedAgentId: isGeneral ? null as number | null : parseInt(urlAgentId),
     selectedAgentName: '',
-    county: '',
+    assignedCounty: '',
     phone: '',
     email: '',
     race: [] as string[],
@@ -33,40 +35,43 @@ export default function SurveyPage() {
   });
 
   useEffect(() => {
-    if (isGeneral) {
-      fetch((process.env.NEXT_PUBLIC_BASE_PATH ?? "") + '/api/agents/public')
-        .then(r => r.json())
-        .then(data => { setAgents(data.agents || []); setAgentsLoading(false); });
-    } else {
-      fetch((process.env.NEXT_PUBLIC_BASE_PATH ?? "") + '/api/agents/public')
-        .then(r => r.json())
-        .then(data => {
-          const agents = data.agents || [];
-          const found = agents.find((a: Agent) => a.id === parseInt(urlAgentId));
-          if (found) {
+    fetch((process.env.NEXT_PUBLIC_BASE_PATH ?? "") + '/api/agents/public')
+      .then(response => response.json())
+      .then(data => {
+        const availableAgents: Agent[] = data.agents || [];
+        setAgents(availableAgents);
+
+        if (!isGeneral) {
+          const found = availableAgents.find(agent => agent.id === parseInt(urlAgentId, 10));
+          if (!found) {
+            setLinkError('This survey link is no longer available. Ask the Agent for a new QR code.');
+          } else {
+            const requestedCounty = new URLSearchParams(window.location.search).get('county') ?? '';
+            const assignedCounty = found.counties.find(
+              county => county.toLowerCase() === requestedCounty.trim().toLowerCase()
+            ) ?? (found.counties.length === 1 && !requestedCounty ? found.counties[0] : '');
+
             setAgentInfo(found);
-            setForm(p => ({ ...p, selectedAgentId: found.id, selectedAgentName: found.name, county: '' }));
+            if (!assignedCounty) {
+              setLinkError('This survey link is missing a valid county. Ask the Agent to generate a new QR code.');
+            } else {
+              setForm(previous => ({
+                ...previous,
+                selectedAgentId: found.id,
+                selectedAgentName: found.name,
+                assignedCounty,
+              }));
+            }
           }
-          setAgentsLoading(false);
-        });
-    }
+        }
+
+        setAgentsLoading(false);
+      })
+      .catch(() => {
+        setLinkError('Unable to load this survey. Please try again.');
+        setAgentsLoading(false);
+      });
   }, [urlAgentId, isGeneral]);
-
-  const normalizeCountyName = (value: string) => value.trim().split(/\s+/).filter(Boolean).map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()).join(' ');
-
-  const getCountiesForAgent = (agent?: Agent | null) => {
-    if (!agent?.code) return [];
-    const counties = agent.code
-      .split(/\s+/)
-      .map(part => part.trim())
-      .filter(Boolean)
-      .map(normalizeCountyName);
-    return Array.from(new Set(counties));
-  };
-
-  const selectedAgent = isGeneral ? agents.find(a => a.id === form.selectedAgentId) ?? null : agentInfo;
-  const agentCounties = getCountiesForAgent(selectedAgent);
-  const showCountyQuestion = agentCounties.length > 1;
 
   const toggleRace = (race: string) => {
     setForm(prev => {
@@ -87,9 +92,14 @@ export default function SurveyPage() {
     setLoading(true);
     setError('');
     try {
-      const countyValue = agentCounties.length === 1 ? agentCounties[0] : form.county;
-      if (showCountyQuestion && !countyValue) {
-        setError('Please select your county.');
+      if (!form.assignedCounty) {
+        setError('This survey link is missing its assigned county. Ask the Agent for a new QR code.');
+        return;
+      }
+
+      const contactEmail = normalizeContactEmail(form.email);
+      if (form.contact_method === 'Email' && !contactEmail) {
+        setError('Please enter a valid email address.');
         return;
       }
 
@@ -98,9 +108,9 @@ export default function SurveyPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           agentId: form.selectedAgentId,
-          city_county: countyValue,
+          city_county: form.assignedCounty,
           phone: form.phone,
-          email: form.email,
+          email: form.contact_method === 'Email' ? contactEmail : null,
           race: form.race,
           age_group: form.age_group,
           sex: form.sex,
@@ -112,20 +122,24 @@ export default function SurveyPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setSubmitted(true);
-    } catch (e: any) {
-      setError(e.message || 'Submission failed.');
+    } catch (submitError: unknown) {
+      setError(submitError instanceof Error ? submitError.message : 'Submission failed.');
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredAgents = agents.filter(a =>
-    a.name.toLowerCase().includes(agentSearch.toLowerCase()) ||
-    a.code.toLowerCase().includes(agentSearch.toLowerCase())
-  );
+  const filteredAssignments = agents
+    .flatMap(agent => agent.counties.map(county => ({ agent, county })))
+    .filter(({ agent, county }) => {
+      const search = agentSearch.toLowerCase();
+      return agent.name.toLowerCase().includes(search) ||
+        agent.code.toLowerCase().includes(search) ||
+        county.toLowerCase().includes(search);
+    });
 
-  const OptionButton = ({ name, value, current, onChange }: {
-    name: string; value: string; current: string; onChange: () => void;
+  const OptionButton = ({ value, current, onChange }: {
+    value: string; current: string; onChange: () => void;
   }) => (
     <button onClick={onChange}
       className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl border-2 text-left transition-all ${current === value ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 bg-white'}`}>
@@ -148,8 +162,6 @@ export default function SurveyPage() {
     </button>
   );
 
-  const agentName = isGeneral ? form.selectedAgentName : (agentInfo?.name || '...');
-
   if (submitted) {
     return (
       <div style={{ backgroundColor: '#4F2D7F' }} className="min-h-screen flex items-center justify-center p-6">
@@ -162,6 +174,29 @@ export default function SurveyPage() {
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Thank You!</h2>
           <p className="text-gray-500 mb-1">Response recorded.</p>
           <p className="text-gray-400 text-sm">Your participation helps PVAMU Extension serve our community better.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isGeneral && agentsLoading) {
+    return (
+      <div style={{ backgroundColor: '#4F2D7F' }} className="min-h-screen flex items-center justify-center p-6">
+        <div className="text-center text-white">
+          <div className="w-10 h-10 rounded-full border-4 border-white/30 border-t-white animate-spin mx-auto" />
+          <p className="mt-4 text-sm font-semibold">Loading survey…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!agentsLoading && linkError) {
+    return (
+      <div style={{ backgroundColor: '#4F2D7F' }} className="min-h-screen flex items-center justify-center p-6">
+        <div className="bg-white rounded-3xl p-8 w-full max-w-sm text-center shadow-2xl">
+          <div className="w-14 h-14 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mx-auto text-2xl" aria-hidden="true">!</div>
+          <h1 className="text-xl font-bold text-gray-900 mt-4">Survey link needs updating</h1>
+          <p className="text-sm text-gray-500 mt-2">{linkError}</p>
         </div>
       </div>
     );
@@ -193,7 +228,7 @@ export default function SurveyPage() {
             </button>
           )}
           <div className="flex-1">
-            <h1 className="text-white font-bold text-lg">CED-Direct Sign-in</h1>
+            <h1 className="text-white font-bold text-lg">Direct Contacts Sign-in</h1>
             <p className="text-indigo-200 text-xs">PVAMU Extension Program</p>
           </div>
         </div>
@@ -217,7 +252,7 @@ export default function SurveyPage() {
         {step === 0 && isGeneral && (
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-1">Who did you meet with?</h2>
-            <p className="text-gray-500 mb-5">Select the CED agent you interacted with today</p>
+            <p className="text-gray-500 mb-5">Select the Extension Agent and location for your interaction</p>
             <div className="relative mb-4">
               <svg className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -231,23 +266,27 @@ export default function SurveyPage() {
               <div className="text-center py-12 text-gray-400">Loading agents...</div>
             ) : (
               <div className="space-y-2">
-                {filteredAgents.map(a => (
-                  <button key={a.id}
-                    onClick={() => { setForm(p => ({ ...p, selectedAgentId: a.id, selectedAgentName: a.name, county: '' })); setError(''); setStep(1); }}
+                {filteredAssignments.map(({ agent, county }) => (
+                  <button key={`${agent.id}-${county}`}
+                    onClick={() => {
+                      setForm(previous => ({ ...previous, selectedAgentId: agent.id, selectedAgentName: agent.name, assignedCounty: county }));
+                      setError('');
+                      setStep(1);
+                    }}
                     className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 rounded-2xl text-left bg-white active:bg-indigo-50 active:border-indigo-400 transition-all">
                     <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <span className="text-indigo-700 font-bold text-xl">{a.name.charAt(0)}</span>
+                      <span className="text-indigo-700 font-bold text-xl">{agent.name.charAt(0)}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-bold text-gray-900 text-base">{a.name}</p>
-                      <p className="text-gray-400 text-sm">{a.code}</p>
+                      <p className="font-bold text-gray-900 text-base">{agent.name}</p>
+                      <p className="text-gray-500 text-sm">{county}</p>
                     </div>
                     <svg className="w-5 h-5 text-gray-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                   </button>
                 ))}
-                {!filteredAgents.length && <div className="text-center py-12 text-gray-400">No agents found</div>}
+                {!filteredAssignments.length && <div className="text-center py-12 text-gray-400">No matching Agent assignments found</div>}
               </div>
             )}
             <p className="text-center text-xs text-gray-400 mt-6">This form does not collect your name or email automatically</p>
@@ -259,40 +298,18 @@ export default function SurveyPage() {
           <div>
             {agentBadge}
             <div className="space-y-5">
-              {showCountyQuestion && (
-                <div>
-                  <label className="block text-base font-bold text-gray-800 mb-2">County</label>
-                  <select value={form.county} onChange={e => { setError(''); setForm(p => ({ ...p, county: e.target.value })); }}
-                    style={{ color: '#111827' }}
-                    className="w-full border-2 border-gray-200 rounded-2xl px-4 py-4 text-base focus:outline-none focus:border-indigo-400 bg-white">
-                    <option value="">Select your county</option>
-                    {agentCounties.map(county => (
-                      <option key={county} value={county}>{county}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
               <div>
                 <label className="block text-base font-bold text-gray-800 mb-2">Phone Number <span className="text-gray-400 font-normal text-sm">(optional)</span></label>
                 <input type="tel" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
+                  data-lpignore="true"
+                  data-1p-ignore="true"
                   placeholder="(555) 000-0000"
-                  style={{ color: '#111827' }}
-                  className="w-full border-2 border-gray-200 rounded-2xl px-4 py-4 text-base focus:outline-none focus:border-indigo-400 bg-white" />
-              </div>
-              <div>
-                <label className="block text-base font-bold text-gray-800 mb-2">Email <span className="text-gray-400 font-normal text-sm">(optional)</span></label>
-                <input type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
-                  placeholder="you@example.com"
                   style={{ color: '#111827' }}
                   className="w-full border-2 border-gray-200 rounded-2xl px-4 py-4 text-base focus:outline-none focus:border-indigo-400 bg-white" />
               </div>
               {error && <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-red-600 text-sm" aria-live="polite">{error}</div>}
               <button onClick={() => {
                 setError('');
-                if (showCountyQuestion && !form.county) {
-                  setError('Please select your county.');
-                  return;
-                }
                 setStep(2);
               }}
                 style={{ backgroundColor: '#4F2D7F' }}
@@ -324,7 +341,7 @@ export default function SurveyPage() {
                 <label className="block text-base font-bold text-gray-800 mb-3">Age Group</label>
                 <div className="space-y-2">
                   {["Less than 5 Years","5-17 Years","18-29 Years","30-59 Years","60-75 Years","76 Years or older","Prefer not to respond"].map(age => (
-                    <OptionButton key={age} name="age" value={age} current={form.age_group} onChange={() => setForm(p => ({ ...p, age_group: age }))} />
+                    <OptionButton key={age} value={age} current={form.age_group} onChange={() => setForm(p => ({ ...p, age_group: age }))} />
                   ))}
                 </div>
               </div>
@@ -332,7 +349,7 @@ export default function SurveyPage() {
                 <label className="block text-base font-bold text-gray-800 mb-3">Sex</label>
                 <div className="space-y-2">
                   {["Male","Female","Prefer not to respond"].map(s => (
-                    <OptionButton key={s} name="sex" value={s} current={form.sex} onChange={() => setForm(p => ({ ...p, sex: s }))} />
+                    <OptionButton key={s} value={s} current={form.sex} onChange={() => setForm(p => ({ ...p, sex: s }))} />
                   ))}
                 </div>
               </div>
@@ -357,15 +374,43 @@ export default function SurveyPage() {
                 <label className="block text-base font-bold text-gray-800 mb-3">How would you like to receive additional information?</label>
                 <div className="space-y-2">
                   {["Phone call","Email","Text"].map(m => (
-                    <OptionButton key={m} name="contact_method" value={m} current={form.contact_method} onChange={() => setForm(p => ({ ...p, contact_method: m }))} />
+                    <OptionButton key={m} value={m} current={form.contact_method} onChange={() => {
+                      setError('');
+                      setForm(p => ({ ...p, contact_method: m, email: m === 'Email' ? p.email : '' }));
+                    }} />
                   ))}
                 </div>
               </div>
+              {form.contact_method === 'Email' && (
+                <div>
+                  <label htmlFor="contact-email" className="block text-base font-bold text-gray-800 mb-2">
+                    Email Address
+                  </label>
+                  <input
+                    id="contact-email"
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
+                    value={form.email}
+                    onChange={e => { setError(''); setForm(p => ({ ...p, email: e.target.value })); }}
+                    placeholder="you@example.com"
+                    required
+                    maxLength={320}
+                    style={{ color: '#111827' }}
+                    className="w-full border-2 border-gray-200 rounded-2xl px-4 py-4 text-base focus:outline-none focus:border-indigo-400 bg-white"
+                  />
+                  <p className="text-xs text-gray-500 mt-2">
+                    This address is saved separately for the selected agent and is not added to your demographic response.
+                  </p>
+                </div>
+              )}
               <div>
                 <label className="block text-base font-bold text-gray-800 mb-3">Would you like info about future Extension programs?</label>
                 <div className="space-y-2">
                   {["Yes","No"].map(opt => (
-                    <OptionButton key={opt} name="wants_info" value={opt} current={form.wants_info} onChange={() => setForm(p => ({ ...p, wants_info: opt }))} />
+                    <OptionButton key={opt} value={opt} current={form.wants_info} onChange={() => setForm(p => ({ ...p, wants_info: opt }))} />
                   ))}
                 </div>
               </div>
@@ -373,7 +418,7 @@ export default function SurveyPage() {
                 <label className="block text-base font-bold text-gray-800 mb-3">May we contact you for follow-up or evaluation?</label>
                 <div className="space-y-2">
                   {["Yes","No"].map(opt => (
-                    <OptionButton key={opt} name="allow_followup" value={opt} current={form.allow_followup} onChange={() => setForm(p => ({ ...p, allow_followup: opt }))} />
+                    <OptionButton key={opt} value={opt} current={form.allow_followup} onChange={() => setForm(p => ({ ...p, allow_followup: opt }))} />
                   ))}
                 </div>
               </div>

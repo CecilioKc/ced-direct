@@ -2,8 +2,8 @@ data/
 *.db
 *.db-shm
 *.db-wal
-.env.local
-.env.production
+.env*
+!.env.example
 node_modules/
 .next/
 *.log
