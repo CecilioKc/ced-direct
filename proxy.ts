@@ -1,5 +1,6 @@
 import { auth } from '@/auth';
 import { NextResponse } from 'next/server';
+import { canActAsAgent, canManage } from '@/lib/roles';
 
 // Protects the internal dashboards behind Azure AD SSO. The public survey
 // form (/survey/*) and its supporting APIs are intentionally left open since
@@ -18,13 +19,18 @@ export default auth((req) => {
   const session = req.auth;
 
   const isAuthed = !!session?.authorized;
-  const isManager = session?.role === 'manager';
+  const isManager = canManage(session?.role);
+  const isAgent = canActAsAgent(session?.role);
 
   if (pathname.startsWith('/admin') && !isManager) {
     return NextResponse.redirect(new URL(`${BP}${isAuthed ? '/agent' : '/'}`, req.nextUrl.origin));
   }
 
-  if ((pathname.startsWith('/agent') || pathname.startsWith('/manager')) && !isAuthed) {
+  if (pathname.startsWith('/manager') && !isManager) {
+    return NextResponse.redirect(new URL(`${BP}${isAuthed && isAgent ? '/agent' : '/'}`, req.nextUrl.origin));
+  }
+
+  if (pathname.startsWith('/agent') && (!isAuthed || !isAgent)) {
     return NextResponse.redirect(new URL(`${BP}/`, req.nextUrl.origin));
   }
 });

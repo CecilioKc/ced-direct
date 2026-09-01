@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { query, queryOne } from '@/lib/db';
+import { canManage } from '@/lib/roles';
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,11 +14,13 @@ export async function GET(request: NextRequest) {
     const month = searchParams.get('month'); // format: 2026-06
     const agentIdParam = searchParams.get('agentId');
     const county = searchParams.get('county');
+    const selfScope = searchParams.get('scope') === 'self';
+    const managerAccess = canManage(session.role);
 
     const targetAgentId =
-      session.role === 'manager' && agentIdParam ? parseInt(agentIdParam, 10) : session.agentId;
+      managerAccess && !selfScope && agentIdParam ? parseInt(agentIdParam, 10) : session.agentId;
 
-    const isManagerAllAgents = session.role === 'manager' && !agentIdParam;
+    const isManagerAllAgents = managerAccess && !selfScope && !agentIdParam;
 
     // build dynamic filter clause + named params together so ordering never drifts
     const conditions: string[] = [];
@@ -52,7 +55,8 @@ export async function GET(request: NextRequest) {
 
     // county breakdown — uses the same filters except county itself, so the chart
     // still shows the full distribution even when not filtered
-    const { county: _omit, ...countyParams } = baseParams as { county?: unknown } & Record<string, unknown>;
+    const countyParams = { ...baseParams };
+    delete countyParams.county;
     const countyConditions = conditions.filter((c) => c !== 'city_county = @county');
     const countyWhere = countyConditions.length ? `WHERE ${countyConditions.join(' AND ')}` : '';
     const countyRows = await query(
@@ -104,7 +108,7 @@ export async function GET(request: NextRequest) {
         `SELECT a.name, a.code, COUNT(s.id) as count
          FROM agents a
          LEFT JOIN submissions s ON a.id = s.agent_id ${joinConditions.join(' ')}
-         WHERE a.role = 'agent'
+         WHERE a.role IN ('agent', 'both')
          GROUP BY a.id, a.name, a.code ORDER BY count DESC`,
         summaryParams
       );

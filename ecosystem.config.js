@@ -1,4 +1,4 @@
-// PM2 process for CED-Direct. From the app folder:
+// PM2 process for Direct Contacts. From the app folder:
 //   pm2 start ecosystem.config.js ; pm2 save
 // Run `npm run build` first (with NEXT_PUBLIC_BASE_PATH set).
 module.exports = {
@@ -12,6 +12,10 @@ module.exports = {
       max_memory_restart: "400M",
       env: {
         NODE_ENV: "production",
+        // Defense in depth: this production process can never satisfy the
+        // local-login requirement of DEPLOYMENT_ENV=test.
+        AUTH_MODE: "azure",
+        DEPLOYMENT_ENV: "production",
         PORT: "3003",
         HOSTNAME: "127.0.0.1",
         // Auth.js builds its callback/URLs from AUTH_URL; set it here so the

@@ -1,6 +1,26 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-CED-Direct's agent/manager dashboards sign in via Microsoft Entra ID (Azure AD) and store data in Azure SQL Database. Copy `.env.example` to `.env.local` and fill in the Azure AD + Azure SQL values before running locally — see `DEPLOYMENT.md` for full setup instructions, including IIS production deployment.
+The Direct Contacts agent/manager dashboards sign in via Microsoft Entra ID (Azure AD) and store data in Azure SQL Database. Copy `.env.example` to `.env.local` and fill in the Azure AD + Azure SQL values before running locally — see `DEPLOYMENT.md` for full setup instructions, including IIS production deployment.
+
+Agents can have the role `agent`, `manager`, or `both`. Dual-role users can switch between self-scoped Agent View and organization-wide Manager View. Survey email follow-up addresses are stored in `agent_contact_emails`, linked to the selected agent and separate from demographic submissions.
+
+Managers assign one or more counties to every Agent account from the official 254-county Texas list, preventing spelling variations in reports. A one-county Agent receives a county-specific survey QR immediately; an Agent serving several counties chooses the current county before generating the QR. The respondent is not asked a county question. The API validates the QR county against both the official list and `agent_counties` before storing it with the submission.
+
+## Test-server login without Microsoft
+
+The app has a fail-closed local login for test environments. It uses the same Auth.js session and authorization checks as Microsoft SSO, but looks up an allow-listed agent code in the test database.
+
+Set these server-side values in the test server's `.env.local` or process environment:
+
+```dotenv
+AUTH_MODE=local
+DEPLOYMENT_ENV=test
+LOCAL_AUTH_PASSWORD=<random value with at least 16 characters>
+LOCAL_AUTH_ALLOWED_CODES=TEST-AGENT,TEST-MANAGER
+LOCAL_AUTH_ALLOWED_HOSTS=localhost:3000,test.example.edu
+```
+
+The listed codes must already exist in that environment's `agents` table. Use the exact browser host, including its port if present. Local login is refused when `DEPLOYMENT_ENV` is not exactly `test`, when the request host is not allow-listed, or when any required setting is missing. Production stays on `AUTH_MODE=azure`; none of the local-auth values are public browser variables.
 
 ## Getting Started
 
@@ -17,6 +37,12 @@ bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+Run the authentication safety checks with:
+
+```bash
+npm test
+```
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 

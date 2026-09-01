@@ -3,8 +3,8 @@ import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "CED-Direct | PVAMU Extension",
-  description: "PVAMU Extension CED Demographics Tool",
+  title: "Direct Contacts | PVAMU Extension",
+  description: "PVAMU Extension demographics collection tool",
 };
 
 export const viewport: Viewport = {
